@@ -1,5 +1,8 @@
 import numpy as np
 import torch
+import gymnasium as gym
+import rsl_rl 
+
 
 # motion planning
 import pybullet
@@ -16,16 +19,17 @@ import arter
 import genesis as gs
 gs.init(backend=gs.gpu)
 
-N_ENVS = 4
+N_ENVS = 1
 START_SIM = True
 ENV_SPACING = 30.0
 INIT_POS = (0.0, 0.0, 6.0)
 INIT_QUAT = (0.0, 0.0, 0.0, 1.0)
+RECORD = False
 
 ########################## create a scene ##########################
 scene = gs.Scene(
     show_FPS=True,
-    show_viewer=False,
+    show_viewer=not RECORD,
     # sim_options=gs.options.SimOptions(
     #     dt=0.01,
     #     gravity=(0, 0, -9.8),
@@ -49,24 +53,43 @@ scene = gs.Scene(
     renderer=gs.renderers.Rasterizer(),
 )
 
-cam = scene.add_camera(
-  res= (640, 480),
-  pos=(0, 50, 50),
-  lookat=(0, 0, 5),
-  fov=40,
-  GUI=True,
-)
+if RECORD:
+    cam = scene.add_camera(
+    res= (640, 480),
+    pos=(0, 50, 50),
+    lookat=(0, 0, 5),
+    fov=40,
+    GUI=True,
+    )
 
 
 ########################## entities ##########################
 platform = scene.add_entity(
-    gs.morphs.Box(
-        size=(10, 10, 5),
-        pos=(0, 0, 2.5),
+    # gs.morphs.Box(
+    #     size=(10, 10, 5),
+    #     pos=(0, 0, 2.5),
+    #     fixed=True,
+    # ),
+    gs.morphs.Mesh(
+        file='/workspace/genesis/assets/meshes/platform.obj',
+        decimate = False,
+        convexify = False,
+        quality = False,
+        collision=True,
+        visualization=True,
+        pos=(0, 0, 0),
         fixed=True,
-    ),
+    )
 )
-        
+
+# slope = scene.add_entity(
+#     gs.morphs.Box(
+#         size=(5*np.sqrt(2), 5*np.sqrt(2), 5),
+#         pos = (0, -10, 2.5),
+#         euler=(45, 0, 0),
+#         fixed=True,
+#     )
+# )
 arter_entity = scene.add_entity(
     gs.morphs.URDF(
         file=arter.URDF_PATH, 
@@ -165,8 +188,14 @@ if START_SIM:
     )
 
     ################## run sim ##################
-    cam.start_recording()
-    for i in range(0, int(1e4)):
+    iter = 0
+    if RECORD:
+        cam.start_recording()
+        iter = int(1e3)
+    else:
+        iter = int(1e8)
+
+    for i in range(0, iter):
         chasis_vel = np.zeros(len(chasis_jnts_idx))
         chasis_vel = np.tile(chasis_vel, (N_ENVS, 1))
         manipulator_vel = np.zeros(len(manipulator_jnts_idx))
@@ -185,7 +214,8 @@ if START_SIM:
         arter_entity.control_dofs_velocity(steer_vel, steerring_jnts_idx)
         
         scene.step()
-        cam.render(depth=False)
+        if RECORD:
+            cam.render(depth=False)
         
         base_pos = arter_entity.get_pos()
         base_quat = arter_entity.get_quat()
@@ -200,5 +230,6 @@ if START_SIM:
                 for j in range(len(base_quat[i])):
                     base_quat[i][j] = INIT_QUAT[j]
                 arter_entity.set_quat(base_quat)
-                
-    cam.stop_recording(save_to_filename="arter_drop.mp4", fps=60)
+    
+    if RECORD:            
+        cam.stop_recording(save_to_filename="arter_drop.mp4", fps=60)
