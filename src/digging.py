@@ -7,9 +7,6 @@ import pybullet_data
 from ompl import base as ob
 from ompl import geometric as og
 from ompl import util as ou
-import spatialmath as sm
-import matplotlib.pyplot as plt
-import math
 
 # local imports
 from assets import friction_coefficients
@@ -19,7 +16,7 @@ import arter
 import genesis as gs
 gs.init(backend=gs.gpu)
 
-N_ENVS = 10
+N_ENVS = 4
 START_SIM = True
 ENV_SPACING = 30.0
 INIT_POS = (0.0, 0.0, 6.0)
@@ -29,10 +26,10 @@ INIT_QUAT = (0.0, 0.0, 0.0, 1.0)
 scene = gs.Scene(
     show_FPS=True,
     show_viewer=False,
-    sim_options=gs.options.SimOptions(
-        dt=0.01,
-        gravity=(0, 0, -9.8),
-    ),
+    # sim_options=gs.options.SimOptions(
+    #     dt=0.01,
+    #     gravity=(0, 0, -9.8),
+    # ),
     viewer_options=gs.options.ViewerOptions(
         res=(3840, 2160),
         camera_pos=(0.0, -5, 7),
@@ -44,17 +41,17 @@ scene = gs.Scene(
         show_world_frame=True,
         ambient_light=(0.5, 0.5, 0.5),
     ),
-    rigid_options=gs.options.RigidOptions(
-        enable_joint_limit=True,
-        gravity=[0.0, 0.0, -9.81],
-        enable_self_collision=True,
-    ),
+    # rigid_options=gs.options.RigidOptions(
+    #     enable_joint_limit=True,
+    #     gravity=[0.0, 0.0, -9.81],
+    #     enable_self_collision=True,
+    # ),
     renderer=gs.renderers.Rasterizer(),
 )
 
 cam = scene.add_camera(
   res= (640, 480),
-  pos=(0, 20, 20),
+  pos=(0, 50, 50),
   lookat=(0, 0, 5),
   fov=40,
   GUI=True,
