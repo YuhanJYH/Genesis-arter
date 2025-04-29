@@ -23,7 +23,7 @@ import genesis as gs
 
 gs.init(backend=gs.gpu)
 
-N_ENVS = 16
+N_ENVS = 100
 START_SIM = True
 ENV_SPACING = 30.0
 INIT_POS = (0.0, 0.0, 6.0)
@@ -60,7 +60,7 @@ scene = gs.Scene(
 if RECORD:
     cam = scene.add_camera(
         res=(2160, 1440),
-        pos=(0, 100, 30),
+        pos=(0, 200, 30),
         lookat=(0, 0, 5),
         fov=40,
         GUI=False,
@@ -125,7 +125,8 @@ print("friction wheel:", arter_entity.get_link("arter/wheel_fl_link").geoms[0].f
 # Set the friction coefficient for the wheel links
 for wheel_link_name in wheel_link_names:
     wheel_link = arter_entity.get_link(wheel_link_name)
-    wheel_link.set_friction(friction_coefficients["road"]["dry_asphalt_concrete"]["min"])  # Set to min value
+    # wheel_link.set_friction(friction_coefficients["road"]["dry_asphalt_concrete"]["max"])  # Set to min value
+    wheel_link.set_friction(10.0)  # Set to min value
 
 print("friction wheel:", arter_entity.get_link("arter/wheel_fl_link").geoms[0].friction)
 
