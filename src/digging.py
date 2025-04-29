@@ -1,9 +1,10 @@
 import numpy as np
 import torch
 import gymnasium as gym
-import rsl_rl 
+# import rsl_rl 
 
-
+from scipy.spatial.transform import Rotation as R
+import math
 # motion planning
 import pybullet
 import pybullet_data
@@ -19,12 +20,12 @@ import arter
 import genesis as gs
 gs.init(backend=gs.gpu)
 
-N_ENVS = 1
+N_ENVS = 100
 START_SIM = True
 ENV_SPACING = 30.0
 INIT_POS = (0.0, 0.0, 6.0)
 INIT_QUAT = (0.0, 0.0, 0.0, 1.0)
-RECORD = False
+RECORD = True
 
 ########################## create a scene ##########################
 scene = gs.Scene(
@@ -55,11 +56,11 @@ scene = gs.Scene(
 
 if RECORD:
     cam = scene.add_camera(
-    res= (640, 480),
+    res= (2160, 1440),
     pos=(0, 50, 50),
-    lookat=(0, 0, 5),
-    fov=40,
-    GUI=True,
+    lookat=(0, 25, 5),
+    fov=90,
+    GUI=False,
     )
 
 
@@ -219,11 +220,26 @@ if START_SIM:
         
         base_pos = arter_entity.get_pos()
         base_quat = arter_entity.get_quat()
+
         
         # reset to init at tipping
         for i in range(N_ENVS):
-            if arter_entity.get_pos()[i][2] < 5.5:
-                print("arter is dropped")
+            # if arter_entity.get_pos()[i][2] < 5.2 or arter_entity.get_pos()[i][2] > 6.5:
+            env_quat = base_quat[i]
+            env_quat = env_quat.cpu()
+            env_quat = np.array(env_quat)
+            print("env_quat: ", env_quat)
+            # general tilt angle > 30 degrees
+            r1 = R.from_quat(env_quat)
+            r_init = R.from_quat(INIT_QUAT)
+            r_diff = r1 * r_init.inv()
+            rot_vector = r_diff.as_rotvec()
+            diff_angle = np.linalg.norm(rot_vector)
+            diff_angle = math.degrees(diff_angle)
+            print("diff_angle: ", diff_angle)
+            if diff_angle > 40:
+                print("arter is tipping, reset to init")
+                # reset to init
                 for j in range(len(base_pos[i])):
                     base_pos[i][j] = INIT_POS[j]
                 arter_entity.set_pos(base_pos)
