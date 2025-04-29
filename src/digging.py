@@ -23,7 +23,7 @@ import genesis as gs
 
 gs.init(backend=gs.gpu)
 
-N_ENVS = 100
+N_ENVS = 16
 START_SIM = True
 ENV_SPACING = 30.0
 INIT_POS = (0.0, 0.0, 6.0)
@@ -60,12 +60,11 @@ scene = gs.Scene(
 if RECORD:
     cam = scene.add_camera(
         res=(2160, 1440),
-        pos=(0, 50, 80),
-        lookat=(0, 25, 5),
-        fov=60,
+        pos=(0, 100, 30),
+        lookat=(0, 0, 5),
+        fov=40,
         GUI=False,
     )
-
 
 ########################## entities ##########################
 platform = scene.add_entity(
@@ -95,7 +94,13 @@ platform = scene.add_entity(
 #     )
 # )
 arter_entity = scene.add_entity(
-    gs.morphs.URDF(file=arter.URDF_PATH, pos=INIT_POS, quat=INIT_QUAT, fixed=False, merge_fixed_links=False),  # 0.4551
+    gs.morphs.URDF(
+        file=arter.URDF_PATH,
+        pos=INIT_POS,
+        quat=INIT_QUAT,
+        fixed=False,
+        merge_fixed_links=False,
+    ),  # 0.4551
     visualize_contact=False,
 )
 ############################ genesis idx ##########################
@@ -104,7 +109,12 @@ stabilizer_jnts_idx = [arter_entity.get_joint(name).dof_idx_local for name in ar
 steerring_jnts_idx = [arter_entity.get_joint(name).dof_idx_local for name in arter.steerring_jnts]
 wheel_jnts_idx = [arter_entity.get_joint(name).dof_idx_local for name in arter.wheel_jnts]
 wheel_vel_mask = np.array([1, -1, 1, -1])
-wheel_link_names = ["arter/wheel_fl_link", "arter/wheel_fr_link", "arter/wheel_rl_link", "arter/wheel_rr_link"]
+wheel_link_names = [
+    "arter/wheel_fl_link",
+    "arter/wheel_fr_link",
+    "arter/wheel_rl_link",
+    "arter/wheel_rr_link",
+]
 claw_jnts_idx = [arter_entity.get_joint(name).dof_idx_local for name in arter.claw_jnts]
 chasis_jnts_idx = swiviel_jnts_idx + stabilizer_jnts_idx + claw_jnts_idx
 manipulator_jnts_idx = [arter_entity.get_joint(name).dof_idx_local for name in arter.manipulator_jnts]
@@ -162,19 +172,19 @@ if START_SIM:
     manipulator_init_pos = [0, 1, 0.5, 0, 0, 0, 0]
     manipulator_init_pos = np.array(manipulator_init_pos)
     manipulator_init_pos = np.tile(manipulator_init_pos, (N_ENVS, 1))
-    random_mask = np.random.uniform(low=-0.5, high=0.5, size=(N_ENVS, 7))
+    random_mask = np.random.uniform(low=-0.2, high=0.2, size=(N_ENVS, 7))
     manipulator_init_pos = manipulator_init_pos + random_mask
     arter_entity.set_dofs_position(manipulator_init_pos, manipulator_jnts_idx)
     print("randomized manipulator init pos: ", manipulator_init_pos)
 
     chasis_init_pos = np.zeros(len(chasis_jnts_idx))
-    chasis_init_pos[4:8] = [-0.2, -0.2, -0.2, -0.2]
+    chasis_init_pos[4:8] = [-0.3, -0.3, -0.3, -0.3]
     chasis_init_pos = np.tile(chasis_init_pos, (N_ENVS, 1))
-    rand = [np.random.uniform(low=-0.2, high=0.0)]*4
+    rand = [np.random.uniform(low=-0.2, high=0.0)] * 4
     random_mask = np.array(rand)
     random_mask = np.tile(random_mask, (N_ENVS, 1))
-    chasis_init_pos[:, 4:8] = chasis_init_pos[:, 4:8] + random_mask
-    
+    # chasis_init_pos[:, 4:8] = chasis_init_pos[:, 4:8] + random_mask
+
     arter_entity.set_dofs_position(chasis_init_pos, chasis_jnts_idx)
 
     ################# set robot controller ##################
@@ -198,7 +208,7 @@ if START_SIM:
     iter = 0
     if RECORD:
         cam.start_recording()
-        iter = int(1e4)
+        iter = int(3 * 1e3)
     else:
         iter = int(1e8)
 
@@ -208,7 +218,7 @@ if START_SIM:
         manipulator_vel = np.zeros(len(manipulator_jnts_idx))
         manipulator_vel = np.tile(manipulator_vel, (N_ENVS, 1))
 
-        wheel_vel = np.array([3 * np.pi] * 4)
+        wheel_vel = np.array([1 * np.pi] * 4)
         wheel_vel = wheel_vel_mask * wheel_vel
         wheel_vel = np.tile(wheel_vel, (N_ENVS, 1))
 
@@ -251,6 +261,14 @@ if START_SIM:
                 for j in range(len(base_quat[i])):
                     base_quat[i][j] = INIT_QUAT[j]
                 arter_entity.set_quat(base_quat)
+
+                # give a new manipulatopr position at new init
+                env_manipulator_init_pos = [0, 1, 0.5, 0, 0, 0, 0]
+                env_manipulator_init_pos = np.array(env_manipulator_init_pos)
+                rand_mask = np.random.uniform(low=-0.5, high=0.5, size=(1, 7))
+                manipulator_init_pos[i] = env_manipulator_init_pos + rand_mask
+                arter_entity.set_dofs_position(manipulator_init_pos, manipulator_jnts_idx)
+                print("randomized manipulator init pos: ", manipulator_init_pos)
 
     if RECORD:
         cam.stop_recording(save_to_filename="arter_drop.mp4", fps=60)
