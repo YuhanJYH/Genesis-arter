@@ -90,6 +90,7 @@ RUN /opt/conda/bin/conda install -c conda-forge --yes \
     hpp-fcl \
     gymnasium \
     stable-baselines3 \
+    tensorboard \
     && /opt/conda/bin/conda clean -afy
 
 WORKDIR /workspace

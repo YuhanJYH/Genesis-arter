@@ -1,13 +1,13 @@
 import genesis as gs
 
-# gs.init()
+gs.init()
 import numpy as np
 import torch
 import gymnasium as gym
 from scipy.spatial.transform import Rotation as R
 import math
 import pinocchio as pin
-import rsl_rl
+# import rsl_rl
 
 # local imports
 from assets import friction_coefficients
