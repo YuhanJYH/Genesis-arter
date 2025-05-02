@@ -1,0 +1,128 @@
+ARG CUDA_VERSION=12.1
+
+# ===============================================================
+# Stage 1: Build Genesis C++ Components (excluding LuisaRender)
+# ===============================================================
+FROM pytorch/pytorch:2.5.1-cuda${CUDA_VERSION}-cudnn9-devel AS builder
+
+ENV DEBIAN_FRONTEND=noninteractive
+ARG PYTHON_VERSION=3.11
+
+# Install necessary packages for Genesis components (like ParticleMesher)
+# Removed Rust (needed for Luisa) and libvulkan-dev
+RUN apt-get update && apt-get install -y --no-install-recommends \
+  build-essential \
+  manpages-dev \
+  zlib1g-dev \
+  xorg-dev libglu1-mesa-dev \
+  libsnappy-dev \
+  software-properties-common \
+  git \
+  curl \
+  wget \
+  patchelf
+# Keep GCC-11 for potential C++14/17 needs in other components or future additions
+RUN add-apt-repository ppa:ubuntu-toolchain-r/test && \
+  apt update && \
+  apt install -y --no-install-recommends \
+  gcc-11 \
+  g++-11 && \
+  rm -rf /var/lib/apt/lists/*
+
+# Set GCC-11 and G++-11 as the default (optional, but kept from original)
+RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-11 110 && \
+  update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-11 110
+
+# Install pybind11 for C++/Python bindings
+# Using pip here, but conda environment in stage 2 might have it too.
+RUN pip install "pybind11[global]"
+
+# Install CMake (needed for many C++ projects)
+RUN wget https://github.com/Kitware/CMake/releases/download/v3.31.0-rc2/cmake-3.31.0-rc2-linux-x86_64.sh && \
+  chmod +x cmake-3.31.0-rc2-linux-x86_64.sh && \
+  ./cmake-3.31.0-rc2-linux-x86_64.sh --skip-license --prefix=/usr/local && \
+  rm cmake-3.31.0-rc2-linux-x86_64.sh
+
+# Clone Genesis and build its submodules (excluding Luisa)
+WORKDIR /workspace
+RUN git clone https://github.com/Genesis-Embodied-AI/Genesis.git && \
+  cd Genesis && \
+  git submodule update --init --recursive
+
+# Build required Genesis C++ extensions (e.g., ParticleMesher)
+# Assuming ParticleMesher is built via Genesis's setup.py triggered during
+# `pip install .` in the runtime stage, requiring build tools here.
+# If a separate build step is needed, add it here.
+
+
+# ===============================================================
+# Stage 2: Runtime Environment with Genesis and Pinocchio (via Conda)
+# ===============================================================
+FROM pytorch/pytorch:2.5.1-cuda${CUDA_VERSION}-cudnn9-devel
+
+ARG PYTHON_VERSION=3.11 
+# Should match Python in the base image's conda env
+ENV DEBIAN_FRONTEND=noninteractive
+ENV NVIDIA_DRIVER_CAPABILITIES=all
+
+# Install runtime dependencies via apt-get
+# Removed libvulkan-dev, lsb-release, gnupg, python3-lxml
+RUN apt-get update && apt-get install -y --no-install-recommends \
+  tmux \
+  git \
+  curl \
+  wget \
+  bash-completion \
+  libgl1 \
+  libgl1-mesa-glx \
+  libegl-dev \
+  libegl1 \
+  libxrender1 \
+  libglib2.0-0 \
+  ffmpeg \
+  libgtk2.0-dev \
+  pkg-config \
+  libgles2 \
+  libglvnd0 \
+  libglx0 \
+  && apt clean \
+  && rm -rf /var/lib/apt/lists/*
+
+# Install Pinocchio using Conda from conda-forge channel
+# Using the conda binary directly from the base image
+# Explicitly installing eigenpy and hpp-fcl as common requirements
+RUN /opt/conda/bin/conda install -c conda-forge --yes \
+  pinocchio \
+  eigenpy \
+  hpp-fcl \
+  && /opt/conda/bin/conda clean -afy
+
+WORKDIR /workspace
+
+# --------------------------- Genesis ----------------------------
+# Install Open3D first as it might be a dependency (using pip for now)
+# Consider installing Open3D via conda as well for better env consistency:
+# RUN /opt/conda/bin/conda install -c open3d-admin -c conda-forge --yes open3d && /opt/conda/bin/conda clean -afy
+# Sticking to pip install for Open3D as per original request for now:
+RUN pip install --no-cache-dir open3d
+
+# Clone and install Genesis Python package
+# This pip install might build C++ extensions like ParticleMesher using tools from Stage 1
+RUN git clone https://github.com/Genesis-Embodied-AI/Genesis.git && \
+  cd Genesis && \
+  pip install . && \
+  pip install --no-cache-dir PyOpenGL==3.1.5
+
+# -------------------- Surface Reconstruction --------------------
+# Set the LD_LIBRARY_PATH directly in the environment for ParticleMesherPy
+# This assumes ParticleMesherPy library is installed/built into this path by `pip install .`
+COPY --from=builder /workspace/Genesis/genesis/ext/ParticleMesher/ParticleMesherPy /opt/conda/lib/python${PYTHON_VERSION}/site-packages/genesis/ext/ParticleMesher/ParticleMesherPy
+ENV LD_LIBRARY_PATH=/opt/conda/lib/python${PYTHON_VERSION}/site-packages/genesis/ext/ParticleMesher/ParticleMesherPy:$LD_LIBRARY_PATH
+
+
+# --------------------- Ray Tracing Renderer (REMOVED) -----------
+
+# Copy necessary NVIDIA driver configs for EGL (OpenGL without display)
+COPY 10_nvidia.json /usr/share/glvnd/egl_vendor.d/10_nvidia.json
+
+ENTRYPOINT ["/bin/bash"]
