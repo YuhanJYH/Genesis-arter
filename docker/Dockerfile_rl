@@ -91,13 +91,18 @@ RUN /opt/conda/bin/conda install -c conda-forge --yes \
     gymnasium \
     stable-baselines3 \
     tensorboard \
+    rerun-sdk \
     && /opt/conda/bin/conda clean -afy
 
 WORKDIR /workspace
 
+#--------------------------- Pip ---------------------------------
+RUN pip install --no-cache-dir \
+    open3d \
+    pyroboplan 
+
 # --------------------------- Genesis ----------------------------
 # Install Open3D first as it might be a dependency (using pip for now)
-RUN pip install --no-cache-dir open3d
 
 # Clone and install Genesis Python package
 # This pip install might build C++ extensions like ParticleMesher using tools from Stage 1
